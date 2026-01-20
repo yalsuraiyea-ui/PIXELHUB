@@ -1,0 +1,175 @@
+-- [[ PIXEL HUB SECURITY LAYER ]] --
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- CHANGE THIS LINK TO YOUR RAW GITHUB LINK FOR WHITELIST.TXT
+local WhitelistURL = "PASTE_YOUR_WHITELIST_RAW_URL_HERE" 
+
+local function checkWhitelist()
+    local success, result = pcall(function()
+        return HttpService:GetAsync(WhitelistURL)
+    end)
+    
+    if success then
+        -- This checks if the player's name is inside your text file
+        if string.find(result, LocalPlayer.Name) then
+            print("Access Granted! Welcome to Pixel Hub.")
+            return true
+        else
+            LocalPlayer:Kick("PIXEL HUB: Access Denied. You are not whitelisted!")
+            return false
+        end
+    else
+        LocalPlayer:Kick("PIXEL HUB: Connection Error. Could not verify whitelist.")
+        return false
+    end
+end
+
+-- Run security check. If it fails, the rest of the script will NOT run.
+if not checkWhitelist() then return end
+
+-- [[ PIXEL HUB | DUEL SCRIPT ]] --
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local player = LocalPlayer
+
+-- // SETTINGS //
+_G.GroundSpeed = 26
+_G.AirSpeed = 26
+_G.JumpPower = 82
+_G.SafeMode = true 
+_G.AntiRagdoll = false 
+_G.Helicopter = false
+_G.StraightWalk = false
+_G.HitboxActive = false
+_G.AutoHit = false
+_G.HitboxSize = 11
+local autoStealEnabled = false
+
+-- --- LOGIC: JT HUB AUTO STEAL ---
+ProximityPromptService.PromptShown:Connect(function(prompt)
+    if autoStealEnabled then
+        local titleText = (prompt.ObjectText .. prompt.ActionText):lower()
+        if string.find(titleText, "steal") then
+            task.spawn(function()
+                prompt:InputHoldBegin()
+                task.wait(prompt.HoldDuration + 0.1) 
+                prompt:InputHoldEnd()
+            end)
+        end
+    end
+end)
+
+-- --- ANTI-LAGBACK ENGINE ---
+RunService.Heartbeat:Connect(function()
+    local char = player.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if hum and hrp then
+        if hum.MoveDirection.Magnitude > 0 then
+            local targetSpeed = (hum:GetState() == Enum.HumanoidStateType.Freefall or hum:GetState() == Enum.HumanoidStateType.Jumping) and _G.AirSpeed or _G.GroundSpeed
+            hrp.Velocity = Vector3.new(hum.MoveDirection.X * targetSpeed, hrp.Velocity.Y, hum.MoveDirection.Z * targetSpeed)
+        end
+
+        hum.UseJumpPower = true
+        hum.JumpPower = _G.JumpPower
+        if _G.SafeMode and hum.Health < 100 then hum.Health = 100 end
+        
+        if _G.AntiRagdoll then
+            local state = hum:GetState()
+            if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.PlatformStanding then
+                hrp.Velocity = Vector3.zero 
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                RunService.Stepped:Wait() 
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+                for _, track in pairs(hum:GetPlayingAnimationTracks()) do
+                    if track.Name:lower():find("ragdoll") or track.Name:lower():find("fall") or track.Name:lower():find("hit") then
+                        track:Stop(0)
+                    end
+                end
+            end
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        end
+        
+        if _G.StraightWalk then for _, v in pairs(hum:GetPlayingAnimationTracks()) do v:Stop(0) end end
+
+        if _G.Helicopter then
+            hum.AutoRotate = false; hrp.AssemblyAngularVelocity = Vector3.new(0, 50, 0)
+        else
+            hum.AutoRotate = true
+        end
+
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+                local tHrp = v.Character.HumanoidRootPart
+                if _G.HitboxActive then
+                    tHrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize); tHrp.Shape = "Ball"; tHrp.Transparency = 0.7; tHrp.Color = Color3.fromRGB(0, 162, 255); tHrp.CanCollide = false
+                end
+                if _G.AutoHit and (hrp.Position - tHrp.Position).Magnitude < (_G.HitboxSize / 1.4) then
+                    local bat = player.Backpack:FindFirstChild("Bat") or char:FindFirstChild("Bat")
+                    if bat then bat.Parent = char; bat:Activate() end
+                end
+            end
+        end
+    end
+end)
+
+-- --- GUI SETUP ---
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12); MainFrame.Position = UDim2.new(0.5, -260, 0.5, -250); MainFrame.Size = UDim2.new(0, 520, 0, 500); MainFrame.Active = true; MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 15)
+
+local OpenBtn = Instance.new("TextButton", ScreenGui)
+OpenBtn.Size = UDim2.new(0, 100, 0, 30); OpenBtn.Position = UDim2.new(0.5, -50, 0, 50); OpenBtn.BackgroundColor3 = Color3.fromRGB(0, 162, 255); OpenBtn.Text = "OPEN HUB"; OpenBtn.Font = "GothamBold"; OpenBtn.TextColor3 = Color3.new(1,1,1); OpenBtn.Active = true; OpenBtn.Draggable = true; Instance.new("UICorner", OpenBtn)
+OpenBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Text = "PIXEL HUB | DUEL"; Title.TextColor3 = Color3.fromRGB(0, 162, 255); Title.TextSize = 18; Title.Font = "GothamBold"; Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 0, 0, 15); Title.Size = UDim2.new(1, 0, 0, 20)
+
+local function createEntry(text, pos, hasToggle, hasSlider, minVal, maxVal, defaultVal, callback, startActive, isGolden)
+    local Entry = Instance.new("Frame", MainFrame); Entry.Size = UDim2.new(0, 230, 0, 36); Entry.Position = pos; Entry.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Instance.new("UICorner", Entry).CornerRadius = UDim.new(0, 8)
+    local EStroke = Instance.new("UIStroke", Entry); EStroke.Thickness = 1.5; EStroke.Color = isGolden and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(45, 45, 45)
+    local Label = Instance.new("TextLabel", Entry); Label.Text = text:upper(); Label.TextColor3 = isGolden and Color3.fromRGB(255, 215, 0) or Color3.new(1,1,1); Label.TextSize = 10; Label.Font = "GothamBold"; Label.Position = UDim2.new(0, 10, 0, 0); Label.Size = UDim2.new(1, -20, 1, 0); Label.TextXAlignment = isGolden and "Center" or "Left"; Label.BackgroundTransparency = 1
+    
+    if hasToggle then
+        local btn = Instance.new("TextButton", Entry); btn.Size = UDim2.new(0, 38, 0, 20); btn.Position = UDim2.new(1, -48, 0.5, -10); btn.BackgroundColor3 = startActive and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(50, 50, 60); btn.Text = ""
+        local circ = Instance.new("Frame", btn); circ.Size = UDim2.new(0, 14, 0, 14); circ.Position = startActive and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7); circ.BackgroundColor3 = Color3.new(1,1,1); Instance.new("UICorner", btn); Instance.new("UICorner", circ)
+        btn.MouseButton1Click:Connect(function() startActive = not startActive; circ:TweenPosition(startActive and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7), "Out", "Quad", 0.1, true); btn.BackgroundColor3 = startActive and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(50, 50, 60); if callback then callback(startActive) end end)
+    elseif hasSlider then
+        local valLbl = Instance.new("TextLabel", Entry); valLbl.Text = tostring(defaultVal); valLbl.TextColor3 = Color3.fromRGB(255, 215, 0); valLbl.Position = UDim2.new(1, -35, 0, 5); valLbl.Size = UDim2.new(0,30,0,15); valLbl.TextSize = 10; valLbl.Font = "GothamBold"; valLbl.BackgroundTransparency = 1; valLbl.TextXAlignment = "Right"
+        local Track = Instance.new("TextButton", Entry); Track.Size = UDim2.new(0.85, 0, 0, 4); Track.Position = UDim2.new(0.07, 0, 0.75, 0); Track.BackgroundColor3 = Color3.fromRGB(40,40,40); Track.Text = ""
+        local Fill = Instance.new("Frame", Track); Fill.BackgroundColor3 = Color3.fromRGB(255, 215, 0); Fill.Size = UDim2.new(math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1), 0, 1, 0); Instance.new("UICorner", Track); Instance.new("UICorner", Fill)
+        local drag = false; local function upd(i) local p = math.clamp((i.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1); Fill.Size = UDim2.new(p, 0, 1, 0); local v = math.floor(minVal + (maxVal - minVal) * p); valLbl.Text = tostring(v); callback(v) end
+        Track.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = true upd(i) end end)
+        UserInputService.InputChanged:Connect(function(i) if drag then upd(i) end end)
+        UserInputService.InputEnded:Connect(function() drag = false end)
+    else
+        local c = Instance.new("TextButton", Entry); c.Size = UDim2.new(1,0,1,0); c.BackgroundTransparency = 1; c.Text = ""; c.MouseButton1Click:Connect(function() if callback then callback() end end)
+    end
+    return Entry
+end
+
+-- --- COLUMNS ---
+local sx, rx = 20, 270
+createEntry("Safe Mode", UDim2.new(0, sx, 0, 60), true, false, 0, 0, 0, function(v) _G.SafeMode = v end, true)
+createEntry("Anti Ragdoll", UDim2.new(0, sx, 0, 105), true, false, 0, 0, 0, function(v) _G.AntiRagdoll = v end, false)
+createEntry("Hitbox Expander", UDim2.new(0, sx, 0, 150), true, false, 0, 0, 0, function(v) _G.HitboxActive = v end)
+createEntry("Auto Hit (Bat Only)", UDim2.new(0, sx, 0, 195), true, false, 0, 0, 0, function(v) _G.AutoHit = v end)
+createEntry("Helicopter", UDim2.new(0, sx, 0, 240), true, false, 0, 0, 0, function(v) _G.Helicopter = v end)
+createEntry("Straight Walk", UDim2.new(0, sx, 0, 285), true, false, 0, 0, 0, function(v) _G.StraightWalk = v end)
+createEntry("Teleport 1", UDim2.new(0, sx, 0, 330), false, false, 0, 0, 0, function() player.Character:MoveTo(Vector3.new(0, 50, 0)) end, nil, true)
+createEntry("Teleport 2", UDim2.new(0, sx, 0, 375), false, false, 0, 0, 0, function() player.Character:MoveTo(Vector3.new(100, 50, 100)) end, nil, true)
+
+createEntry("Jump Boost:", UDim2.new(0, rx, 0, 105), false, true, 0, 150, 82, function(v) _G.JumpPower = v end)
+createEntry("Move Speed:", UDim2.new(0, rx, 0, 150), false, true, 0, 100, 26, function(v) _G.GroundSpeed = v end)
+createEntry("Air Speed:", UDim2.new(0, rx, 0, 195), false, true, 0, 100, 26, function(v) _G.AirSpeed = v end)
+createEntry("Hitbox Size:", UDim2.new(0, rx, 0, 240), false, true, 5, 50, 11, function(v) _G.HitboxSize = v end)
+createEntry("Auto Steal", UDim2.new(0, rx, 0, 330), true, false, 0, 0, 0, function(v) autoStealEnabled = v end, false)
+
+local Footer = Instance.new("TextLabel", MainFrame); Footer.Text = "BEST SETTINGS: JUMP 82 | SPEED 26 | HITBOX 11"; Footer.TextColor3 = Color3.fromRGB(0, 162, 255); Footer.TextSize = 10; Footer.Font = "GothamBold"; Footer.BackgroundTransparency = 1; Footer.Position = UDim2.new(0, 0, 1, -45); Footer.Size = UDim2.new(1, 0, 0, 20)
+local Close = Instance.new("TextButton", MainFrame); Close.Text = "X"; Close.TextColor3 = Color3.fromRGB(200, 50, 50); Close.TextSize = 22; Close.Font = "GothamBold"; Close.BackgroundTransparency = 1; Close.Position = UDim2.new(1, -30, 0, 10); Close.Size = UDim2.new(0, 20, 0, 20); Close.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
