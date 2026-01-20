@@ -4,7 +4,7 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 -- CHANGE THIS LINK TO YOUR RAW GITHUB LINK FOR WHITELIST.TXT
-local WhitelistURL = "PASTE_YOUR_WHITELIST_RAW_URL_HERE" 
+local WhitelistURL = "https://raw.githubusercontent.com/yalsuraiyea-ui/PIXELHUB/refs/heads/main/whitelist.txt" 
 
 local function checkWhitelist()
     local success, result = pcall(function()
